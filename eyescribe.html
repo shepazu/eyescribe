@@ -1,0 +1,1183 @@
+<doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>EyeScribe</title>
+  <style type="text/css">
+    body {
+      font-family: Verdana, Arial, sans-serif;
+      font-size: 1em;
+      background: #333;
+      /*overflow: hidden;*/
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 0.1em;
+      color: white;
+    }
+
+    section#controls {
+      width: 13em;
+      float: left;
+      background: gray;
+      padding: 0.5em;
+    }
+
+    section.control_group {
+      background: gainsboro;  
+      /*display: block;    */
+      padding: 0.5em;
+      margin-bottom: 0.25em;
+      /*margin: 0.1em;*/
+    }
+
+    section#image-area {
+      min-width: 80%;
+      max-width: 90%;
+      float: right;
+      overflow: scroll;
+    }
+
+    img {
+      max-width: 100%;
+    }
+
+    #fileDisplayArea {
+      margin-top: 2em;
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    #zoom-control {
+      min-width: 10em;
+    }
+
+    .dimensions {
+
+    }
+
+    .dimensions label {
+      display: inline-block;
+      width: 4em;
+    }
+
+    .dimensions input {
+      width: 6em;
+    }
+
+
+    .button, button {
+      font-size: 1em;
+      display: inline-block;
+      margin: 0.15em;
+      outline: none;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      /*padding: .5em 2em .3em;*/
+      /*text-shadow: 0 1px 1px rgba(0,0,0,.3);*/
+      box-shadow: 0 1px 2px rgba(0,0,0,.2);
+      border: solid 0.25px black;
+      border-radius: 4px;
+      color: black;
+      background-color: white;
+    }
+
+      a.button {
+        padding: 0 .3em 0 .3em;
+      }
+
+      input[type="file"] {
+        font-size: 1em;
+      }
+
+      .button[aria-pressed="true"], button[aria-pressed="true"] {
+        background-color: black;
+        color: white;
+      }
+
+
+      input[type="radio"] { 
+        float: left;
+        clear: both;
+      }
+
+      fieldset label { 
+        float: left;
+        margin-left: .5em;
+        width: 8em;
+          /*display: inline-block;  */
+      }
+
+
+
+    .hilite {
+      fill: yellow;
+      stroke: red;
+      stroke-width: 1px;
+      opacity: 0.4;
+    }
+
+    .selected {
+      fill: lime;
+      stroke: green;
+      stroke-width: 3px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-dasharray: 3 5;
+      opacity: 0.4;
+    }
+
+
+  </style>
+
+  <script type="text/javascript">
+    var filename = null;
+    var draw = null;
+
+    window.onload = function() {
+      var svgroot = document.getElementById("eyescribe");
+      draw = new eyeScribeApp(svgroot);
+      draw.init();
+
+      var fileInput = document.getElementById("fileInput");
+      var fileDisplayArea = document.getElementById("fileDisplayArea");
+
+
+      var download_controls = document.getElementById( "download-controls" );
+      download_controls.addEventListener("mouseover", createSaveLink, false);
+
+      // <input type="text" onkeypress="document.getElementById("example").innerHTML=this.value;" name="whatever" />
+
+      var title_input_el = document.getElementById( "title-input" );
+      title_input_el.addEventListener("keyup", updateText, false);
+
+      var desc_input_el = document.getElementById( "desc-input" );
+      desc_input_el.addEventListener("keyup", updateLink, false);
+
+
+      var link_input_el = document.getElementById( "link-url-input" );
+      link_input_el.addEventListener("keyup", updateLink, false);
+
+      // var link_target_el = document.getElementById( "link_target" );
+      // link_target_el.addEventListener("keyup", updateText, false);
+      var radios = document.getElementsByName("link_target");
+      for (var r = 0, r_len = radios.length; r_len > r; ++r) {
+        var eachRadio = radios[r];
+        eachRadio.addEventListener("click", updateLink, false );
+      }
+
+      fileInput.addEventListener("change", function(e) {
+        var file = fileInput.files[0];
+        var imageType = /image.*/;
+
+        if (file.type.match(imageType)) {
+          filename = file.name;
+          var reader = new FileReader();
+
+          reader.onload = function(e) {
+            // fileDisplayArea.innerHTML = "";
+
+            var img = new Image();
+            img.src = reader.result;
+            // console.log( img.width + " x " + img.height);
+            var w = document.getElementById("width");
+            w.value = img.width;            
+
+            var h = document.getElementById("height");
+            h.value = img.height;
+
+
+            var svgroot = document.getElementById("eyescribe");
+            svgroot.setAttribute( "viewBox", "0 0 " + img.width + " " + img.height );
+
+            // fileDisplayArea.appendChild(img);
+              // console.log( reader );
+
+            var imageEl = document.getElementById("source-image");
+            imageEl.setAttributeNS("http://www.w3.org/1999/xlink", "href", reader.result);
+          }
+
+          reader.readAsDataURL(file); 
+        } else {
+          fileDisplayArea.innerHTML = "File not supported!"
+        }
+      });
+
+    }
+
+    
+    function updateText( event ) {
+      // console.log( event.target.value );
+      // console.log( "updateText" );
+      // if ( draw.selected_title ) {
+      //   // console.log( "updateText" );
+      //   // console.log("textContent 0");
+      //   draw.selected_title.textContent = event.target.value;
+      // }
+
+      var target_el = event.target;
+      var targetId = target_el.id;
+      var text = target_el.value;
+      if ( "title-input" == targetId ) {
+        draw.updateTitle( text );
+      } else if ( "desc-input" == targetId ) {
+        draw.updateDesc( text );
+      }
+    }
+
+
+    function updateInputs( input_type, text ) {
+      var input_el = document.getElementById( input_type + "-input" );
+      input_el.value = text;
+    }
+
+    
+    function updateLink( event ) {
+      var target_el = event.target;
+      var target_id = target_el.id;
+
+      if ( "title-input" == target_id ) {
+        var link_target_value = document.querySelector("input[name='link_target']:checked").value;
+        draw.addLink( target_el.value, link_target_value );
+      } else {
+        var link_input_el = document.getElementById( "link-url-input" );
+        draw.addLink( link_input_el.value, target_el.value );
+      }
+    }
+
+    function updateLinkSettings( url_value, link_target_value ) {
+      document.getElementById( "link-url-input" ).value = url_value;
+      document.getElementById( link_target_value ).checked = true;
+    }
+
+
+    
+    function setZoom( event ) {
+      var zoomVal = event.target.value;
+      document.getElementById("zoomValLabel").innerHTML = zoomVal;
+      if ( draw.selected_el ) {
+        draw.selected_el.setAttribute("data-zoom", zoomVal);
+      }
+    }
+
+
+    function createSaveLink() {
+      var image_area = document.getElementById( "image-area" );
+      // uses HTML5 features: the ‘Blob’ object and the ‘download’ attribute of the <a> element 
+      var blob = new Blob([image_area.innerHTML], {type:"image/svg+xml"});
+      // var downloadLink = document.getElementById("download");
+      var downloadLink = document.getElementById( "download-button" );
+      downloadLink.download = filename.replace(/\..*/, ".svg");
+      downloadLink.href = window.URL.createObjectURL(blob);
+      // document.getElementById('new-filesize').innerHTML = '(revised: ' + byteSized( blob.size ) + ')';
+    }
+
+
+
+
+
+    /*
+    // Drawing
+    */
+
+
+    function eyeScribeApp(svgroot) {
+      this.root = svgroot;
+      this.backdrop = this.root.getElementById("backdrop");
+      this.canvas = this.root.getElementById("hilites");
+
+      this.active_el = null;
+      this.selected_el = null;
+      this.selected_title = null;
+      this.selected_desc = null;
+      this.points = null;
+
+      this.buttons = null;
+      this.mode = "draw-dot";
+
+      this.coords = this.root.createSVGPoint();
+      this.originpoint = this.root.createSVGPoint();
+
+      // styles
+      this.styles = {
+        "fill": "yellow",
+        "stroke": "red",
+        "stroke-width": "1px",
+        "opacity": "0.4"
+      };
+
+      this.hilitestyles = {
+        "fill": "lime",
+        "stroke": "green",
+        "stroke-width": "3px",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+        "stroke-dasharray": "3 5",
+        "opacity": "0.4"
+      };
+
+      this.values = {
+        "symbol": "hexagon"
+      };
+
+      // constants
+      this.svgns = "http://www.w3.org/2000/svg";
+      this.xlinkns = "http://www.w3.org/1999/xlink";
+    }
+
+    eyeScribeApp.prototype.init = function (){
+      // this.root.addEventListener("click", bind(this, this.draw), false );
+
+      this.root.addEventListener("mousedown", bind(this, this.grab), false );
+      this.root.addEventListener("mousemove", bind(this, this.drag), false );
+      this.root.addEventListener("mouseup", bind(this, this.drop), false );
+
+      this.buttons = document.querySelectorAll("button");
+      for (var b = 0, bLen = this.buttons.length; bLen > b; ++b) {
+        var eachButton = this.buttons[b];
+        eachButton.addEventListener("click", bind(this, this.handleButtons), false );
+      }
+
+      this.listboxes = document.querySelectorAll("[role='listbox']");
+      for (var l = 0, lLen = this.listboxes.length; lLen > l; ++l) {
+        var eachListbox = this.listboxes[l];
+        eachListbox.addEventListener("click", bind(this, this.handleDropdown), false );
+      }
+
+      this.inputs = document.querySelectorAll("input[type='number']");
+      for (var i = 0, iLen = this.inputs.length; iLen > i; ++i) {
+        var eachInput = this.inputs[i];
+        eachInput.addEventListener("click", bind(this, this.handleInputs), false );
+      }
+
+      // console.log( JSON.stringify(this.styles).replace(/"/g, "").replace(/,/g, "; ").replace(/[{}]/g, "") )
+
+        // this.active_el.setAttribute("class", "hilite" );
+        // this.selected_el.classList.add("selected");
+        // this.selected_el.classList.remove("selected");
+        
+    }
+
+
+    /*
+    // draw
+    */
+    eyeScribeApp.prototype.draw = function (event){
+      if ( this.backdrop == event.target || this.canvas == event.target.parentNode ) {
+        // adjust coords
+        this.coords = localCoords(event, this.backdrop, this.root);
+        //console.log(event.detail)
+
+        if (2 == event.detail){
+          if ( "draw-polygon" == this.mode ){
+            this.end_draw( event );
+          }
+
+          this.reset();
+        } else {
+          switch (this.mode) {
+            case "draw-dot":
+              this.drawDot();
+              break;
+
+            case "draw-polyline":
+              this.drawPoly("polyline" );
+              break;
+
+            case "draw-polygon":
+              this.drawPoly("polygon");
+              break;
+
+            case "draw-rect":
+              this.drawRect();
+              break;
+
+            case "draw-circle":
+              this.drawCircle();
+              break;
+
+            case "draw-path":
+              this.drawPath();
+              break;
+
+            case "draw-freehand":
+              this.drawFreehand();
+              break;
+
+            case "draw-use":
+              this.drawUse();            
+              break;
+
+          }
+        }
+      }
+    }
+
+    eyeScribeApp.prototype.drawDot = function (){
+      this.active_el = document.createElementNS(this.svgns, "circle");
+      this.active_el.setAttribute("cx", this.coords.x.toFixed(2));
+      this.active_el.setAttribute("cy", this.coords.y.toFixed(2));
+      this.active_el.setAttribute("r", "2");
+      this.active_el.setAttribute("class", "hilite");
+
+      // note that we're now appending draw elements to a specific canvas
+      this.canvas.appendChild( this.active_el );
+
+      // if we don't set this to null, it starts dragging immediately!
+      this.active_el = null;
+    }
+
+    eyeScribeApp.prototype.drawPoly = function (shape){
+      if (!this.active_el 
+          || shape != this.active_el.localName ) {
+        this.active_el = document.createElementNS(this.svgns, shape);
+        this.active_el.setAttribute("class", "hilite");
+      } else {
+        var points = this.active_el.getAttribute("points");
+        this.points = points.split(" ");
+      }
+
+      if (!this.points) {
+        this.points = [];
+      }
+
+      this.points.push( this.coords.x.toFixed(2) + "," + this.coords.y.toFixed(2) );
+      this.active_el.setAttribute("points", this.points.join(" "));
+
+      // no longer need to worry about SVG controls
+      this.canvas.appendChild( this.active_el );
+    }
+
+    eyeScribeApp.prototype.drawRect = function (){
+      if (!this.active_el ) {
+        this.active_el = document.createElementNS(this.svgns, "rect");
+        this.active_el.setAttribute("class", "hilite");
+
+        if (!this.points) {
+          this.points = [];
+        }
+
+        // we're using the points array, but in a different way for rect than for polys  
+        this.points.push( this.coords.x.toFixed(2) );
+        this.points.push( this.coords.y.toFixed(2) );
+
+        this.active_el.setAttribute("x", this.points[0] );
+        this.active_el.setAttribute("y", this.points[1] );
+
+        this.canvas.appendChild( this.active_el );
+      }      
+    }
+
+    eyeScribeApp.prototype.drawCircle = function (){
+      if (!this.active_el ) {
+        this.active_el = document.createElementNS(this.svgns, "circle");
+        this.active_el.setAttribute("class", "hilite");
+
+        if (!this.points) {
+          this.points = [];
+        }
+
+        // we're using the points array, but in a different way for rect than for polys  
+        this.points.push( this.coords.x.toFixed(2) );
+        this.points.push( this.coords.y.toFixed(2) );
+
+        this.active_el.setAttribute("cx", this.points[0] );
+        this.active_el.setAttribute("cy", this.points[1] );
+
+        this.canvas.appendChild( this.active_el );
+      }      
+    }
+
+    eyeScribeApp.prototype.drawPath = function (){
+      if (!this.active_el ) {
+        this.active_el = document.createElementNS(this.svgns, "path");
+        this.active_el.setAttribute("class", "hilite");
+      }
+
+      var d = this.active_el.getAttribute("d");
+      if (!d) {
+        d = "M";
+      }
+      d += " " + this.coords.x.toFixed(2) + "," + this.coords.y.toFixed(2) + " ";
+      this.active_el.setAttribute("d", d);
+
+      // NOTE: we're now storing the points array for a path  
+      if (!this.points) {
+        this.points = [];
+      }
+      this.points.push( this.coords.x.toFixed(2) + "," + this.coords.y.toFixed(2) );
+
+      this.canvas.appendChild( this.active_el );
+    }
+
+    eyeScribeApp.prototype.drawFreehand = function (){
+      if (!this.active_el ) {
+        this.active_el = document.createElementNS(this.svgns, "path");
+        // this.active_el.setAttribute("class", "hilite");
+      }
+
+      var d = this.active_el.getAttribute("d");
+      if (!d) {
+        d = "M";
+      }
+      d += " " + this.coords.x.toFixed(2) + "," + this.coords.y.toFixed(2) + " ";
+      this.active_el.setAttribute("d", d);
+      this.active_el.setAttribute("class", "hilite");
+
+      this.canvas.appendChild( this.active_el );
+    }
+
+    eyeScribeApp.prototype.drawUse = function (){
+      this.active_el = document.createElementNS(this.svgns, "use");
+      this.active_el.setAttribute("x", this.coords.x.toFixed(2));
+      this.active_el.setAttribute("y", this.coords.y.toFixed(2));
+      this.active_el.setAttributeNS(this.xlinkns, "href", "#" + this.values["symbol"]);
+      this.active_el.setAttribute("class", "hilite");
+
+      this.canvas.appendChild( this.active_el );
+      this.active_el = null;
+    }
+
+
+
+    /*
+    // drag-n-drop
+    */
+    eyeScribeApp.prototype.grab = function (event){
+      if ( -1 != this.mode.indexOf("draw-") ){
+        this.draw( event );
+      } else if ( "drag" == this.mode 
+        || "erase" == this.mode 
+        || "select" == this.mode ) {
+        // stop native drag-n-drop
+        event.preventDefault();
+        event.stopPropagation();
+
+        // only grab things in drawing area
+        if ( this.canvas == event.target.parentNode ) {
+          var target = event.target;
+          if (this.backdrop != target) {
+            this.active_el = target;
+
+            if ( "select" == this.mode ) {
+              this.select();
+              // if ( this.selected_el && this.selected_el != this.active_el ) {
+              //   this.selected_el.classList.remove("selected");
+
+              //   this.selected_title = this.selected_el.querySelector("title");
+              //   this.selected_desc = this.selected_el.querySelector("desc");            
+              // }
+
+              // this.selected_el = this.active_el;
+              // if ( this.selected_el ) {
+              //   this.selected_el.classList.add("selected");
+              //   this.selected_title = this.selected_el.querySelector("title");
+              //   this.selected_desc = this.selected_el.querySelector("desc");            
+              // }
+            } else {
+              this.coords = localCoords(event, this.backdrop, this.root);
+              this.originpoint = this.coords;
+
+              // adjust for existing transforms
+              var transform = this.active_el.getAttribute("transform");
+              if (transform) {
+                var translate = transform.replace("translate(", "").replace(")", "").split(",");
+                this.originpoint.x.toFixed(2) -= parseFloat( translate[0] );
+                this.originpoint.y.toFixed(2) -= parseFloat( translate[1] );
+              }
+            }
+          }
+        }
+      } 
+    }
+
+    eyeScribeApp.prototype.drag = function (event){
+      // stop native drag-n-drop
+      event.preventDefault();
+      event.stopPropagation();
+
+      this.coords = localCoords(event, this.backdrop, this.root);
+
+      if ( "drag" == this.mode ){
+        if ( this.active_el ) {
+          var x = this.coords.x.toFixed(2) - this.originpoint.x.toFixed(2);
+          var y = this.coords.y.toFixed(2) - this.originpoint.y.toFixed(2);
+
+          this.active_el.setAttribute("transform", "translate(" + x + "," + y + ")");
+        }
+      } else if (this.active_el) {
+        switch (this.mode) {
+          case "draw-dot":
+            break;
+
+          case "draw-rect":
+            this.updateRect();
+            break;
+
+          case "draw-circle":
+            this.updateCircle();
+            break;
+
+          case "draw-polyline":
+          case "draw-polygon":
+            this.updatePoly();            
+            break;
+
+          case "draw-path":
+            this.updatePath();            
+            break;
+
+          case "draw-freehand":
+            this.updateFreehand();            
+            break;
+        }
+      }
+    }
+
+    eyeScribeApp.prototype.drop = function (){
+      if ( "draw-polygon" == this.mode ){
+        // this.end_draw( event );
+      } else if ( -1 != this.mode.indexOf("draw-") ){
+        this.end_draw( event );
+      } else if ( "drag" == this.mode ){
+        this.active_el = null;
+      } else if ( "erase" == this.mode ) {
+        if ( this.active_el ) {
+          this.active_el.parentNode.removeChild( this.active_el );
+          this.active_el = null;
+        }
+      } else if ( "animate" == this.mode ) {
+        this.animate();
+      }
+    }
+
+    eyeScribeApp.prototype.end_draw = function (event){
+        console.log("end_draw");
+      // // this.mode = "";
+      var title_el = document.createElementNS(this.svgns, "title");
+      title_el.textContent = "add meaningful title";
+      this.active_el.appendChild( title_el ); 
+
+
+      // this.select( this.active_el );
+
+      this.active_el = null;
+      this.points = null;
+    }
+
+    eyeScribeApp.prototype.select = function ( targetEl ){
+      if ( !targetEl ) {
+        targetEl = this.active_el;
+      }
+
+      if ( this.selected_el && this.selected_el == targetEl ) {
+        // deselect current selected element
+        this.selected_el.classList.remove("selected");
+        this.selected_el = null;
+        this.selected_title = null;
+        this.selected_desc = null;
+
+        // depopulate inputs
+        updateInputs( "title", "" );
+        updateInputs( "desc", "" );
+
+      } else {
+        if ( this.selected_el ){
+          // deselect current selected element
+          this.selected_el.classList.remove("selected");
+        }
+
+        // select current active element
+        this.selected_el = targetEl;
+        this.selected_el.classList.add("selected");
+
+        this.selected_title = this.selected_el.querySelector("title");
+        this.selected_desc = this.selected_el.querySelector("desc");  
+
+        // populate UI title and desc inputs
+        var title_text = "";
+        if ( this.selected_title ) {
+          title_text = this.selected_title.textContent;
+        }
+        updateInputs( "title", title_text );
+
+        var desc_text = "";
+        if ( this.selected_desc ) {
+          desc_text = this.selected_desc.textContent;
+        }
+        updateInputs( "desc", desc_text );
+
+
+        // populate UI link settings
+        var parent_el = this.selected_el.parentNode;
+        var url_value = "";
+        var link_target_value = "_blank";
+        if ( "a" == parent_el.localName ) {
+          url_value = parent_el.getAttributeNS("http://www.w3.org/1999/xlink", "href" );
+          link_target_value = parent_el.getAttribute( "target" );
+        }        
+        updateLinkSettings( url_value, link_target_value );
+
+        // convert all to hilites
+        initEyescribe();      
+      } 
+    }
+
+    eyeScribeApp.prototype.updateTitle = function ( title_text ) {
+      if ( this.selected_el ){
+        if ( !this.selected_title ) {
+          this.selected_title = this.selected_el.querySelector("title");
+
+          if ( !this.selected_title ) {
+            this.selected_title = document.createElementNS(this.svgns, "title");
+            this.selected_el.appendChild( this.selected_title ); 
+
+            if (!title_text) {
+              title_text = "add meaningful title";
+            }           
+          }
+        }
+
+        console.log("textContent 1");
+        this.selected_title.textContent = title_text;
+      }
+    }
+
+    eyeScribeApp.prototype.updateDesc = function ( desc_text ) {
+      if ( this.selected_el ){
+        if ( !this.selected_desc ) {
+          this.selected_desc = this.selected_el.querySelector("desc");
+
+          if ( !this.selected_desc ) {
+            this.selected_desc = document.createElementNS(this.svgns, "desc");
+            this.selected_el.appendChild( this.selected_desc ); 
+
+            if (!desc_text) {
+              desc_text = "add meaningful description";
+            }           
+          }
+        }
+
+        console.log("textContent 2");
+        this.selected_desc.textContent = desc_text;
+      }
+    }
+
+    eyeScribeApp.prototype.addLink = function ( url, target ) {
+      var parent_el = this.selected_el.parentNode;
+      if ( "a" == parent_el.localName ) {
+        parent_el.setAttributeNS("http://www.w3.org/1999/xlink", "href", url );
+        parent_el.setAttribute( "target", target );
+      } else {
+        var link_el = document.createElementNS(this.svgns, "a");
+        link_el.setAttributeNS("http://www.w3.org/1999/xlink", "href", url );
+        link_el.setAttribute( "target", target );
+
+        parent_el.insertBefore( link_el, this.selected_el );
+        link_el.appendChild( this.selected_el );
+      }
+    }
+
+    /*
+    // Update shapes
+    */
+    eyeScribeApp.prototype.updatePoly = function (){
+      var points = this.points.join(" ");
+      points += " " + this.coords.x.toFixed(2) + "," + this.coords.y.toFixed(2);
+      this.active_el.setAttribute("points", points);
+    }
+    
+    eyeScribeApp.prototype.updatePath = function (){
+      var d = "M" + this.points.join(" ");
+      d += " " + this.coords.x.toFixed(2) + "," + this.coords.y.toFixed(2);
+      this.active_el.setAttribute("d", d);
+    }
+    
+    eyeScribeApp.prototype.updateFreehand = function (){
+      var d = this.active_el.getAttribute("d");
+      if (!d) {
+        d = "M";
+      }
+      d += this.coords.x.toFixed(2) + "," + this.coords.y.toFixed(2) + " ";
+      this.active_el.setAttribute("d", d);
+    }
+    
+    eyeScribeApp.prototype.updateRect = function (){
+      // we're using the points array, but in a different way for rect than for polys  
+      this.points[2] = this.coords.x.toFixed(2);
+      this.points[3] = this.coords.y.toFixed(2);
+
+      var x = this.points[0];
+      var width = this.points[2] - this.points[0];
+      if ( 0 > width ) {
+        //if the current cursor x is to the left of the origin, we have to reposition the x attribute
+        x = this.points[2];
+        width = this.points[0] - this.points[2];
+      }
+
+      var y = this.points[1];
+      var height = this.points[3] - this.points[1];
+      if ( 0 > height ) {
+        //if the current cursor y is to the top of the origin, we have to reposition the y attribute
+        y = this.points[3];
+        height = this.points[1] - this.points[3];
+      }
+
+      this.active_el.setAttribute("x", x );
+      this.active_el.setAttribute("y", y );
+      this.active_el.setAttribute("width", width );
+      this.active_el.setAttribute("height", height );
+    }
+
+    eyeScribeApp.prototype.updateCircle = function (){
+      this.points[2] = this.coords.x.toFixed(2);
+      this.points[3] = this.coords.y.toFixed(2);
+
+      // geometry magic!
+      var radius = Math.sqrt(Math.pow(Math.abs(this.points[2] - this.points[0]), 2) 
+                 + Math.pow(Math.abs(this.points[3] - this.points[1]), 2));
+      this.active_el.setAttribute("r", radius );
+    }
+
+
+    eyeScribeApp.prototype.animate = function (){
+      if ( this.active_el && "path" == this.active_el.localName ) {
+        this.pathLength = this.active_el.getTotalLength();
+        this.pathOffset = this.pathLength;
+        this.active_el.style.strokeDasharray = this.pathLength;
+        this.active_el.style.strokeDashoffset = this.pathOffset;
+
+        var t = this; 
+        this.timer = setInterval( function () {
+          if ( 0 < t.pathOffset ) {
+            t.pathOffset -= 5;
+            t.active_el.style.strokeDashoffset = t.pathOffset;
+          } else {
+            clearInterval( t.timer );
+          }
+        }, 10);
+      }
+    }
+
+    /*
+    // UI controls
+    */
+
+    eyeScribeApp.prototype.handleButtons = function (){
+      this.reset();
+
+      for (var b = 0, bLen = this.buttons.length; bLen > b; ++b) {
+        var eachButton = this.buttons[b];
+        eachButton.setAttribute("aria-pressed", "false" );
+      }
+
+      var target = event.target;
+      target.setAttribute("aria-pressed", "true" );
+      this.mode = target.getAttribute("data-mode");
+      
+      console.log("mode: " + this.mode);
+    }
+
+    eyeScribeApp.prototype.handleDropdown = function (){
+      // var target = event.target;
+      // var options = target.parentNode.querySelectorAll("[role='option']")
+      // for (var o = 0, oLen = options.length; oLen > o; ++o) {
+      //   var eachOption = options[o];
+      //   eachOption.setAttribute("aria-selected", "false" );
+      // }
+      // target.setAttribute("aria-selected", "true" );
+      // var prop = target.parentNode.getAttribute("data-property");
+      // if ( prop ) {
+      //   this.styles[prop] = target.textContent;
+      // } else {
+      //   var datatype = target.parentNode.getAttribute("data-type");
+      //   this.values[datatype] = target.textContent;
+      // }
+    }
+
+    eyeScribeApp.prototype.handleInputs = function (){
+      var target = event.target;
+      var prop = target.getAttribute("data-property");
+      this.styles[prop] = target.value;
+    }
+
+    eyeScribeApp.prototype.getStyle = function ( styleType ){
+      if (!styleType) {
+        styleType = this.styles;
+      }
+
+      var style = JSON.stringify(styleType)
+                      .replace(/"/g, "")
+                      .replace(/,/g, "; ")
+                      .replace(/[{}]/g, "");
+
+      return style;
+    }
+
+
+    eyeScribeApp.prototype.reset = function (){
+      // clicking on any button should start a new active element and new mode
+      this.active_el = null;
+      this.points = null;
+    }
+
+
+    // adjust coordinates for transforms
+    // note that this changed to add the SVG root element
+    function localCoords ( event, element, root ) {
+      var p = root.createSVGPoint();
+      p.x = event.clientX.toFixed(2);
+      p.y = event.clientY.toFixed(2);
+      p = p.matrixTransform(element.getScreenCTM().inverse());
+
+      // NOTE: now we're looking at the numbers, so limiting the floats to precison 2 makes it easier
+      // since SVG only works at one pixel of accuracy anyway
+      // p.x = Math.round(p.x * 100)/100;
+      // p.y = Math.round(p.y * 100)/100;
+      // console.log("p: " + p.x + "," + p.y);
+      p.x = p.x.toFixed(2);
+      p.y = p.y.toFixed(2);
+      return p;
+    }   
+
+    function bind (scope, fn) {
+      return function () {
+        return fn.apply( scope, arguments );
+      }
+    }
+  </script>
+</head>
+<body>
+  <section id="controls">
+    <h1>EyeScribe</h1>
+    <section class="control_group">
+      <section>
+        Select an image file: 
+        <input type="file" id="fileInput">
+      </section>
+
+      <section>
+        Image dimensions: 
+        <div class="formfield dimensions">
+          <label for="width">width:</label>
+          <input id="width" readonly/>
+        </div>
+        <div class="formfield dimensions">
+          <label for="height">height:</label>
+          <input id="height" readonly/>
+        </div>
+      </section>    
+    </section>
+
+
+    <section class="control_group">
+      <!-- <button id="draw">Draw outline shape</button>   -->
+      <button aria-pressed="false" data-mode="draw-rect">rectangle</button>
+      <button aria-pressed="false" data-mode="draw-circle">circle</button>
+      <button aria-pressed="false" data-mode="draw-polygon">polygon</button>
+      <button aria-pressed="false" data-mode="draw-freehand">freehand</button>  
+
+      <button aria-pressed="false" data-mode="drag">drag</button>
+      <button aria-pressed="false" data-mode="erase">erase</button>
+
+      <!-- <button id="auto-outline">Auto-outline</button> -->
+      <!-- <input id="slider1" type="range" min="0" max="100" step="5" /> -->      
+    </section>
+
+    <section class="control_group">
+      <button aria-pressed="false" data-mode="select">select</button>
+      <!-- <input type="range" min="1" max="4" step="0.1" /> -->
+      <div id="zoom-control">
+        <label for="zoomVal">Shape zoom: <em id="zoomValLabel" style="font-style: normal;">1.5</em>x</label>
+        <input type="range" min="1" max="4"
+          onchange="setZoom(event)"
+          step="0.1" id="zoomVal" value="1.3" />    
+      </div>
+
+      <div class="formfield">
+        <label for="title-input">Shape title text:</label>
+        <textarea id="title-input" placeholder="Write title"> </textarea>
+      </div>
+
+      <div class="formfield">
+        <label for="desc-input">Longer description for shape:</label>
+        <textarea id="desc-input" placeholder="Write description"> </textarea>
+      </div>      
+    </section>
+
+
+    <section class="control_group">
+      <div>
+        <!-- <legend>Links</legend> -->
+        <div class="formfield">
+          <label for="link-url-input">Link URL:</label>
+          <input id="link-url-input" />
+        </div>
+        <fieldset>
+          <legend>Link target:</legend>
+          
+          <input id="_blank" value="_blank" type="radio" name="link_target" checked>
+          <label for="_blank">New Tab (external link)</label><br>
+
+          <input id="_top" value="_top" type="radio" name="link_target">
+          <label for="_top">Same Tab (page navigation or external link)</label><br>
+        </fieldset>
+      </div>
+      
+    </section>
+
+
+    <section id="download-controls" class="control_group">
+      <a id="download-button" class="button icon-download download" href="#"><span>Download…</span></a>           
+    </section>    
+  </section>
+
+  <section id="image-area">
+    <svg id="eyescribe" xmlns="http://www.w3.org/2000/svg" 
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+      width="100%" height="100%" viewBox="0 0 1000 683"
+      onload="initEyescribe()">     
+      
+      <title>W3C Opening</title>
+
+      <script> 
+        // document.documentElement.onload = function() { 
+        function initEyescribe() { 
+          // console.log("init");
+          var hilites = document.querySelectorAll(".hilite");
+          for (var i = 0, iLen = hilites.length; iLen > i; i++) {
+            var hiliteEl = hilites[i];
+            hiliteEl.addEventListener("mouseover", hilite, false);
+            hiliteEl.addEventListener("mouseout", lolite, false);
+            if (!hiliteEl.id) {
+              var titleEl = hiliteEl.querySelector("title");
+              
+              console.log("textContent 3");
+              var titleID = titleEl.textContent.replace(/\W+/g, "-");
+              var dupeID = document.getElementById(titleID);
+              var u = 1;
+              while (dupeID) {
+                u++;
+                dupeID = document.getElementById(titleID + "_" + u);
+              }
+              if (u > 1) {
+                titleID += "_" + u;
+              }
+              hiliteEl.setAttribute( "id", titleID);
+            }
+          }
+        }
+
+        function hilite(evt) { 
+          // console.log("hilite");
+          var el = evt.target;
+          var magnifier = document.getElementById("hilite-magnifier");
+          var masker = document.getElementById("hilite-masker");
+          var clip = document.getElementById("hilite-clip-use");
+
+          var id = el.getAttribute("id");
+          var scale = parseFloat(el.getAttribute("data-zoom"));
+          if (!scale) {
+            scale = 1.3;
+          }
+          var bbox = el.getBBox();
+          
+          var cx = (-bbox.x + ((bbox.x/scale) + ((bbox.width/2)/scale))) - ((bbox.width/2));
+          if (-bbox.x > cx) { 
+            cx = -bbox.x;
+          }
+          var cy = -bbox.y + ((bbox.y/scale) + ((bbox.height/2)/scale)) - ((bbox.height/2));
+          if (-bbox.y > cy) { 
+            cy = -bbox.y;
+          }
+
+          masker.setAttributeNS("http://www.w3.org/1999/xlink", "href", "#" + id); 
+          clip.setAttributeNS("http://www.w3.org/1999/xlink", "href", "#" + id);
+
+
+          magnifier.setAttribute( "x", cx);
+          magnifier.setAttribute( "y", cy);
+          magnifier.setAttribute( "transform", "scale(" + scale + ")");
+
+          var maskVal = el.getAttribute("data-mask");
+          if (maskVal) {
+            var mask = document.getElementById("image-mask");
+            mask.setAttribute( "opacity", 0.05);
+          }
+        }
+
+        function lolite(evt) { 
+          // console.log("lolite");
+          var masker = document.getElementById("hilite-masker");
+          var clip = document.getElementById("hilite-clip-use");
+          
+          masker.setAttributeNS("http://www.w3.org/1999/xlink", "href", "#"); 
+          clip.setAttributeNS("http://www.w3.org/1999/xlink", "href", "#");
+
+          var mask = document.getElementById("image-mask");
+          mask.setAttribute( "opacity", 1);
+        }
+
+      </script>
+
+      <defs>
+        <image id="source-image" width="1000" height="683" xlink:href="01_W3C_Opening.jpg"/>
+
+
+        <clipPath id="hilite-clip">
+          <use id="hilite-clip-use" xlink:href="#"/>
+        </clipPath>
+
+        <mask id="mask">
+          <rect id="image-mask" width="100%" height="100%" fill="white" opacity="1"/>
+        </mask> 
+
+        <mask id="hilite-mask">
+          <rect width="100%" height="100%" fill="white" opacity="0"/>
+        </mask> 
+
+      </defs>
+
+      <style type="text/css">
+        #hilites {
+          fill: none;
+          stroke: none;
+        }
+
+        .hilite {
+          pointer-events: all;      
+        }
+
+        .test {
+          fill: yellow;
+          stroke: red;
+          stroke-width: 2px;
+          fill-opacity: 0.5;
+        }
+
+        #hilite-magnifier {
+          pointer-events: none;
+        }
+
+        #hilite-masker {
+          fill: white;
+          stroke: white;
+          pointer-events: none;
+        }
+      </style>
+      <use xlink:href="#source-image" mask="url(#mask)" />
+      <use id="hilite-masker" xlink:href="#" pointer-events="none"/>
+      <rect id="backdrop" x="0" y="0" width="100%" height="100%" fill="none" pointer-events="all"/>
+
+      <g id="hilites">
+
+      </g>
+
+
+      <use id="hilite-magnifier" xlink:href="#source-image" clip-path="url(#hilite-clip)"/>
+    </svg>
+  </section>
+</body>
+</html>
